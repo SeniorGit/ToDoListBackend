@@ -45,7 +45,7 @@ exports.createTask = async (req, res) => {
     due_date: due_date ||  null,
     reminder: reminder || null
   }
-  console.log('🟡 Creating task with data:', taskData);
+
     const {data, error} = await supabase
     .from('task')
     .insert([taskData])
