@@ -1,6 +1,4 @@
-const bcrypt= require("bcrypt");
-const jwt = require("jsonwebtoken");
-const User = require("../model/userModel")
+const supabase = require('../utils/supabaseclient')
 
 exports.register = async (req, res) => {
     try{
@@ -25,46 +23,40 @@ exports.register = async (req, res) => {
         }
 
         // check if email register
-        const existingUser = await User.findByEmail(email);
-        if (existingUser){
+        const {data, error} = await supabase.auth.signUp({
+            email, 
+            password,
+            options: {
+                data: {
+                    username: username
+                }
+            }
+        });
+        
+        if(error){
             return res.status(400).json({
                 success: false,
-                message: "Email already registered"
+                message: error.message
             })
         }
 
-
-        // hash and salting password
-        const saltRound = 8;
-        const password_hash = await bcrypt.hash(password, saltRound);
-
-        // send to DB
-        const newUser = await User.create({
-            email: email,
-            password_hash: password_hash,
-            username: username || null
-        })
-
-        // send data to frontend
+        // success response
         res.status(201).json({
-            success: true, 
-            message: "Register Success", 
+            success: true,
+            message: "Register Success",
             data:{
                 user:{
-                    id: newUser.id,
-                    email: newUser.email,
-                    username: newUser.username
-                },
+                    id: data.user.id,
+                    email: data.user.email,
+                    username: data.user.user_metadata?.username
+                }
             }
         })
-
     }catch(error){
         console.error("Error in Register", error)
-
         res.status(500).json({
             success: false, 
             message: "We're experiencing technical issues. Please try again later." ,
-            error: process.env.NODE_ENV === "development" ? error.message: undefined
         });
     }
 };
@@ -80,33 +72,18 @@ exports.login = async (req, res) => {
             })
         }
 
-        // Search user Email
-        const user = await User.findByEmail(email);
-        if(!user){
+        // Search user in supabase
+        const {data, error} = await supabase.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if(error){
             return res.status(401).json({
                 success:false,
                 message:"Invalid email or password"
             });
         }
-
-        // Password Validation
-        const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-        if(!isPasswordValid){
-            return res.status(401).json({
-                success:false, 
-                message: "Invalid email or password"
-            });
-        }
-
-        // generate token for SignIn
-        const token = jwt.sign(
-            {
-                userId: user.id,
-                email: user.email
-            },
-            process.env.JWT_SECRET,
-            {expiresIn: "1d"}
-        )
 
         // success responese
         res.json({
@@ -114,11 +91,11 @@ exports.login = async (req, res) => {
             message: "Login Successful",
             data: {
                 user:{
-                    id: user.id,
-                    email: user.email,
-                    username: user.username
+                    id: data.user.id,
+                    email: data.user.email,
+                    username: data.user.user_metadata?.username
                 },
-                token: token
+                token: data.session.access_token
             }
         })
 
@@ -160,15 +137,27 @@ exports.logOut = async(req, res)=>{
 // change profile email and username
 exports.changePro = async(req, res)=>{
     try{
-        const id = req.user.id;
         const {email, username} = req.body;
-        const result = await User.updateProfile(id, {email, username});
+        
+        const {data, error} = await supabase.auth.updateUser({
+            email: email,
+            data: {username: username}
+        })
+        
+        if(error) throw error;
 
         res.json({
             success: true, 
             message: "Profile update successfully",
-            data: result
+            data: {
+                user: {
+                    id: data.user.id,
+                    email: data.user.email,
+                    username: data.user.user_metadata?.username
+                }
+            }
         })
+
     }catch(error){
         console.error("Error in Change Profile", error);
         res.status(500).json({
@@ -182,35 +171,16 @@ exports.changePro = async(req, res)=>{
 exports.changePass = async(req, res)=>{
     try{
         // take data
-        const id = req.user.id;
-        const {currentPassword, newPassword} = req.body;
+        const { newPassword } = req.body;
 
         // Validasi input
-        if (!currentPassword || !newPassword) {
+        if (!newPassword) {
             return res.status(400).json({
                 success: false,
-                message: "Current password and new password are required"
+                message: "New password is required"
             });
         }
-
-        //searching user by id  
-        const user = await User.findById(id);
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: "User not found"
-            });
-        }
-
-        // Validation
-        const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password_hash);
-        if(!isCurrentPasswordValid){
-            return res.status(400).json({
-                success: false,
-                message: "Current password is incorrect"
-            })
-        }
-
+        
         // Valdiatin new password
         if (newPassword.length < 6) {
             return res.status(400).json({
@@ -218,12 +188,14 @@ exports.changePass = async(req, res)=>{
                 message: "New password must be at least 6 characters"
             });
         }
+       
+        //searching user by id  
+        const {data, user} = await supabase.auth.updateUser({
+            password: newPassword
+        }) 
+        
+        if (error) throw error;
 
-        // hash password
-        const saltRound = 8;
-        const newPasswordHash = await bcrypt.hash(newPassword, saltRound);
-
-        const result = await User.updatePassword(id, newPasswordHash);
         res.json({
             success: true,
             message: "Password updated successfully"
@@ -241,8 +213,8 @@ exports.changePass = async(req, res)=>{
 // delete account 
 exports.delete = async(req, res)=>{
     try {
-        const id = req.user.id;
-        const result = await User.deleteAccount(id);
+        // Delete user di Supabase (butuh service role key untuk ini)
+        // Atau bisa handle di client-side dengan supabase.auth.signOut() + delete account flow
         
         res.json({
             success: true,
