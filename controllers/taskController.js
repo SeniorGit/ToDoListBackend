@@ -7,7 +7,7 @@ exports.getAllTask = async (req, res) => {
     .from('task')
     .select('*')
     .eq('user_id', req.user.id)
-    .order('created_at', {ascending:false})
+    .order('create_at', {ascending:false})
 
     if(error) throw error
 
@@ -45,6 +45,7 @@ exports.createTask = async (req, res) => {
     due_date: due_date ||  null,
     reminder: reminder || null
   }
+  console.log('🟡 Creating task with data:', taskData);
     const {data, error} = await supabase
     .from('task')
     .insert([taskData])
@@ -96,6 +97,13 @@ exports.updateTask = async (req, res) => {
 
     if (error) throw error 
 
+    if (!data || data.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Task not found"
+      });
+    }
+
     res.json({
       success: true,
       data: data[0],
@@ -120,15 +128,16 @@ exports.deleteTask = async (req, res) => {
       .from('task')
       .delete()
       .eq('id', id)
-      .eq('user_id', req.user.id);
+      .eq('user_id', req.user.id)
+      .select();
 
     if (error) throw error;
 
-    if (data.lenght === 0){
+    if (!data || data.length === 0) {
       return res.status(404).json({
         success: false,
         message: "Task not found"
-      })
+      });
     }
 
     res.json({ 
