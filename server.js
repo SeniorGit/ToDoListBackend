@@ -8,7 +8,23 @@ require('dotenv').config();
 const app = express();
 
 // Middleware
-app.use(cors({origin:['https://to-do-list-rho-ashen.vercel.app/']})); 
+app.use(cors({
+  origin: [
+    'https://to-do-list-rho-ashen.vercel.app'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+
+// Atau lebih simple - allow semua origin untuk testing
+app.use(cors({
+  origin: true, // Allow all origins
+  credentials: true
+}));
+
+// Handle preflight requests
+app.options('*', cors());
 app.use(express.json()); 
 
 // Routes
