@@ -10,7 +10,7 @@ const app = express();
 // Middleware
 app.use(cors({
   origin: [
-    // 'https://to-do-list-rho-ashen.vercel.app',
+    'https://to-do-list-rho-ashen.vercel.app',
     'http://localhost:3001'
   ],
   credentials: true,
